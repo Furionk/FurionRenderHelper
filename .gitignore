@@ -1,0 +1,17 @@
+# Documentation and summary files
+BUGFIX_VIEW_LAYER.md
+CLIPBOARD_REMOVAL_SUMMARY.md
+EXTENSION_SUMMARY.md
+FILENAME_PATTERN_FEATURE.md
+MULTI_CHANNEL_SUMMARY.md
+RENDER_PASS_FIX.md
+SINGLE_CHANNEL_FIX.md
+
+# Build artifacts
+*.zip
+__pycache__/
+*.pyc
+*.pyo
+
+# VS Code
+.vscode/
