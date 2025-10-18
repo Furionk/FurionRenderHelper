@@ -2,7 +2,7 @@
 
 ## 🎉 New Feature: Customizable Filename Patterns
 
-Your extension now includes a powerful token-based filename pattern system that allows complete control over how rendered files are named!
+Just a tool for me to manage blender render easier, allows me complete control over how rendered files are named!
 
 ### ✨ Key Features Added
 

@@ -1,109 +1,79 @@
 # Furion Render Helper
 
-Advanced frame rendering with keyframe detection for Blender.
+Batch render specific frames with multi-channel output and customizable filename patterns.
 
-## Features
+## Key Features
 
-- **Batch Frame Rendering**: Render specific frames or frame ranges with a simple comma-separated input
-- **Customizable Filename Patterns**: Token-based system for flexible filename generation
-- **Smart Keyframe Detection**: Automatically suggest frames that contain keyframes across all animated objects
-- **Persistent Settings**: Save and remember your preferred output directory and filename patterns
-- **Progress Tracking**: Real-time progress display with console output and cancellation support
-- **Flexible Frame Input**: Support for both individual frames (1,5,10) and ranges (1-5,10-15)
-- **Live Preview**: Real-time filename preview showing what your files will be named
+- 🎯 **Batch Frame Rendering** - Render specific frames or ranges (e.g., `1,5,10-15,30`)
+- 🎨 **Multi-Channel Output** - Automatically exports all enabled render passes from View Layer
+- 📝 **Custom Filename Patterns** - Token-based naming with live preview
+- 🔑 **Smart Keyframe Detection** - Auto-suggest frames with keyframes
+- 💾 **Persistent Settings** - Remembers output folder and patterns
 
-## Usage
+## Quick Start
 
-1. **Set Output Folder** (Optional): Configure where your rendered frames will be saved. If not set, uses the blend file directory.
+1. **Set Output Folder** - Click "Set Output Folder" or leave blank to use blend file directory
+2. **Enable Render Passes** - Go to View Layer Properties > Passes and enable desired outputs
+3. **Configure Pattern** (Optional) - Use tokens like `(FileName)_(Frame)_(Channel)` for custom naming
+4. **Enter Frames** - Type frame numbers: `1,5,10` or ranges: `1-5,10-15` or click keyframe icon
+5. **Render** - Click "Furion Render Helper"
 
-2. **Customize Filename Pattern** (Optional): 
-   - Use tokens like `(FileName)`, `(Camera)`, `(Frame)`, `(Channel)` for naming
-   - Add date/time with `(Start:yyyyMMdd)`, `(End:HHmmss)` for time-stamped files
-   - Preview shows exactly how your files will be named
+## Filename Tokens
 
-3. **Configure Render Passes** (In Blender's View Layer Properties): 
-   - Go to Properties > View Layer Properties > Passes
-   - Enable the passes you want to output: Data (Z/Depth, Mist, Normal), Light (Diffuse, Glossy, Emission, etc.)
-   - The extension automatically detects and outputs ALL enabled passes
-   - Multiple passes require `(Channel)` token in filename pattern
+| Token | Output | Notes |
+|-------|--------|-------|
+| `(FileName)` | `MyProject` | Blend file name |
+| `(Camera)` | `Camera` | Scene camera name |
+| `(ViewLayer)` | `ViewLayer` | View layer name |
+| `(Frame)` | `0001` | Frame with padding |
+| `(Channel)` | `Combined`, `Depth`, `Mist` | Render pass name (required for multi-pass) |
+| `(Start:yyyyMMdd)` | `20251018` | Render start date/time |
+| `(End:HHmmss)` | `172118` | Render end time |
 
-4. **Choose Frames to Render**: 
-   - Enter frame numbers manually: `1,5,10,25`
-   - Use ranges: `1-5,10-15,30`
-   - Mix both: `1,5-10,15,20-25`
-   - Click the keyframe icon to auto-populate with frames containing keyframes
+### Date/Time Format
+- `yyyy` = year, `MM` = month, `dd` = day, `HH` = hour, `mm` = minute, `ss` = second
 
-5. **Render**: Click "Render Specific Frames" to start batch rendering or "Render Current Frame" for single frame rendering.
+### Example Patterns
 
-## Filename Pattern System
+```
+(FileName)_(Camera)_frame_(Frame)
+→ MyProject_Camera_frame_0001.png
 
-The extension supports a powerful token-based filename pattern system:
+(FileName)_(Frame)_(Channel)
+→ MyProject_0001_Combined.png
+→ MyProject_0001_Depth.png
 
-### Available Tokens
-- `(FileName)` - Blend file name without .blend extension
-- `(Camera)` - Current scene camera name
-- `(ViewLayer)` - Current view layer name
-- `(Frame)` - Frame number with zero-padding (0001, 0002, etc.)
-- `(Channel)` - Render pass/channel name (Combined, Depth, Mist, Normal, AO, etc.)
-  - **Required when multiple render passes are enabled** to avoid files overwriting each other
-  - Leave it out when rendering only single pass to simplify filenames
-- `(Start:format)` - Render batch start date/time
-- `(End:format)` - Render completion date/time (or current time for single frames)
+(FileName)_(ViewLayer)_(Frame)_(Start:yyyyMMdd)
+→ MyProject_Beauty_0001_20251018.png
+```
 
-### Date/Time Formats
-- `yyyy` - 4-digit year (2025)
-- `MM` - 2-digit month (01-12)
-- `dd` - 2-digit day (01-31)
-- `HH` - 2-digit hour (00-23)
-- `mm` - 2-digit minute (00-59)
-- `ss` - 2-digit second (00-59)
+## Multi-Channel Rendering
 
-### Pattern Examples
-| Pattern | Output Example |
-|---------|----------------|
-| `(FileName)_(Camera)_frame_(Frame)` | `MyProject_Camera_frame_0001` |
-| `(FileName)_(ViewLayer)_(Frame)` | `MyProject_ViewLayer_0001` |
-| `(FileName)_(Camera)_(Frame)_(Channel)` | `MyProject_Camera_0001_Combined` |
-| `(FileName)_(ViewLayer)_(Frame)_(Channel)` | `MyProject_ViewLayer_0001_Depth` |
-| `(FileName)_(Camera)_(Frame)_(Start:yyyyMM)` | `MyProject_Camera_0001_202510` |
-| `(FileName)_(Frame)_(End:yyyyMMddHHmmss)` | `MyProject_0001_20251018172118` |
-| `(FileName)_(End:yyyyMMdd_HH:mm:ss)` | `MyProject_20251018_17:21:18` |
-| `render_(Start:yyyy-MM-dd)_(Frame)` | `render_2025-10-18_0001` |
+**Enable passes in Blender:**  
+Properties > View Layer Properties > Passes > Data/Light sections
 
-### Multi-Channel Output Examples
-When multiple render passes are selected with pattern `(FileName)_(Camera)_(Frame)_(Channel)`:
-- `MyProject_Camera_0001_Combined.png`
-- `MyProject_Camera_0001_Depth.png`
-- `MyProject_Camera_0001_Mist.png`
-- `MyProject_Camera_0001_Normal.png`
-
-## Panel Location
-
-Properties Panel > Render Properties > Render Specific Frames
-
-## File Naming Convention
-
-Rendered files are named using the pattern:
-`[blend_filename]_[camera_name]_frame_[frame_number].[extension]`
-
-Example: `MyProject_Camera_frame_0001.png`
-
-## System Requirements
-
-- Blender 4.0 or later
-- All operating systems supported
+**Add `(Channel)` token when rendering multiple passes:**
+- ✅ With token: Each pass saves separately  
+  `MyProject_0001_Combined.png`, `MyProject_0001_Depth.png`
+- ⚠️ Without token: Passes overwrite each other  
+  `MyProject_0001.png` (only last pass saved)
 
 ## Tips
 
-- Use persistent data rendering for faster batch processing
-- Press ESC during rendering to cancel the operation
-- The extension remembers your output folder preference between sessions
-- Supports all standard Blender image formats (PNG, JPEG, TIFF, EXR)
+- Press **ESC** during rendering to cancel
+- Click **keyframe icon** to auto-populate animated frames
+- **Open Folder** button quickly accesses output directory
+- Settings are automatically saved between sessions
 
-## Permissions
+## Requirements
 
-- **Files**: Creates a preferences file to remember your output folder and filename pattern settings
+- Blender 4.0+
+- Supports Windows, macOS, Linux
 
-## License
+## Location
 
-GPL-3.0-or-later
+Properties > Render Properties > **Furion Render Helper**
+
+---
+
+**License:** MIT
