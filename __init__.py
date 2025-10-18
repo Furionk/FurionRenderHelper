@@ -598,7 +598,7 @@ class RENDER_OT_specific_frames(Operator):
     frame_list: StringProperty(
         name="Frame Numbers",
         description="Enter frame numbers separated by commas (e.g., 1,5,10,25) or ranges (e.g., 1-5,10-15)",
-        default="1,5,10-15"
+        default=""
     )
     
     # Internal properties for modal operation
