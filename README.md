@@ -1,22 +1,19 @@
 # Furion Render Helper
 
-Batch Furion Render Helper with multi-channel output and customizable filename patterns.
+This is just a blender plugin for me to batch render with multi-channel output and customizable filename patterns. 
 
 ## Key Features
 
-- 🎯 **Batch Frame Rendering** - Furion Render Helper or ranges (e.g., `1,5,10-15,30`)
-- 🎨 **Multi-Channel Output** - Automatically exports all enabled render passes from View Layer
-- 📝 **Custom Filename Patterns** - Token-based naming with live preview
-- 🔑 **Smart Keyframe Detection** - Auto-suggest frames with keyframes
-- 💾 **Persistent Settings** - Remembers output folder and patterns
+- 🎯 **Batch Frame Rendering** - Batch render by typing a frame ranges (e.g., `1,5,10-15,30`)
+- 🔑 **Smart Keyframe Detection** - Auto-suggest keyframes. This is for blocking stage render, it picks the dope sheet summary timeline keyframes. and skip those frames for interpolation. Also, if you type 1-100 but a few keyframes out of the range say at 200, it only filters frames between 1 to 100.
 
 ## Quick Start
 
 1. **Set Output Folder** - Click "Set Output Folder" or leave blank to use blend file directory
-2. **Enable Render Passes** - Go to View Layer Properties > Passes and enable desired outputs
+2. **Enable Render Passes** - Go to View Layer Properties > Passes and enable desired outputs channels (optional)
 3. **Configure Pattern** (Optional) - Use tokens like `(FileName)_(Frame)_(Channel)` for custom naming
 4. **Enter Frames** - Type frame numbers: `1,5,10` or ranges: `1-5,10-15` or click keyframe icon
-5. **Render** - Click "Furion Render Helper"
+5. **Render** - Click "Render Specific Frames" or "Render Current Frame"
 
 ## Filename Tokens
 
@@ -57,13 +54,6 @@ Properties > View Layer Properties > Passes > Data/Light sections
   `MyProject_0001_Combined.png`, `MyProject_0001_Depth.png`
 - ⚠️ Without token: Passes overwrite each other  
   `MyProject_0001.png` (only last pass saved)
-
-## Tips
-
-- Press **ESC** during rendering to cancel
-- Click **keyframe icon** to auto-populate animated frames
-- **Open Folder** button quickly accesses output directory
-- Settings are automatically saved between sessions
 
 ## Requirements
 

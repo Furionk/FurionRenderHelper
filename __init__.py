@@ -1590,7 +1590,7 @@ class RENDER_OT_suggest_keyframes(Operator):
 
 class RENDER_PT_specific_frames_panel(Panel):
     """Panel for rendering specific frames"""
-    bl_label = "Render Specific Frames"
+    bl_label = "Furion Render Helper"
     bl_idname = "RENDER_PT_specific_frames"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
