@@ -1,0 +1,40 @@
+schema_version = "1.0.0"
+
+id = "furion_render_helper"
+version = "1.0.0"
+name = "Furion Render Helper"
+tagline = "Advanced frame rendering with clipboard integration and keyframe detection"
+maintainer = "Furion Mashiou <furion@example.com>"
+type = "add-on"
+
+# Tags to help discoverability (limited to official tags)
+tags = ["Render", "Animation"]
+
+blender_version_min = "4.2.0"
+
+# License conforming to https://spdx.org/licenses/ (use "SPDX:" prefix)
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+# Copyright to include in generated meta-data.
+copyright = [
+  "2024 Furion Mashiou"
+]
+
+# Add-ons can list which resources they will require
+[permissions]
+files = "User preferences file for output folder settings"
+clipboard = "Copy rendered images to system clipboard"
+
+[build]
+paths_exclude_pattern = [
+  "__pycache__/",
+  "*.pyc",
+  ".git/",
+  ".gitignore",
+  "*.blend*",
+  "validate_extension.py",
+  "build_extension.py",
+  "*.zip",
+]
