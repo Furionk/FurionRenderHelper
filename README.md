@@ -2,6 +2,8 @@
 
 This is just a blender plugin for me to batch render with multi-channel output and customizable filename patterns. 
 
+![image](https://github.com/Furionk/FurionRenderHelper/blob/main/furion_render_helper.png)
+
 ## Key Features
 
 - 🎯 **Batch Frame Rendering** - Batch render by typing a frame ranges (e.g., `1,5,10-15,30`)
