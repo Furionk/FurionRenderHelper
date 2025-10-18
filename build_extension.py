@@ -71,7 +71,7 @@ def create_extension_package():
     ]
     
     # Create package name with version and date
-    package_name = f"furion_render_helper_v1.0.0_{datetime.now().strftime('%Y%m%d')}.zip"
+    package_name = f"furion_render_helper_v1.2.0_{datetime.now().strftime('%Y%m%d')}.zip"
     package_path = os.path.join(current_dir, package_name)
     
     print(f"📦 Package name: {package_name}")

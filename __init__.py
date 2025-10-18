@@ -2,41 +2,38 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Furion Render Helper - Advanced frame rendering with clipboard integration and keyframe detection
+Furion Render Helper - Advanced frame rendering with keyframe detection
 
 This extension provides tools for batch rendering specific frames with advanced features:
 - Batch frame rendering with flexible input (individual frames and ranges)
 - Smart keyframe detection across all animated objects
-- Windows clipboard integration with alpha channel support
-- Persistent output folder preferences
+- Customizable filename patterns with date/time support
+- Persistent output folder and filename pattern preferences
 - Real-time progress tracking with cancellation support
 """
 
 bl_info = {
     "name": "Furion Render Helper",
     "author": "Furion Mashiou",
-    "version": (1, 0, 0),
+    "version": (1, 2, 0),
     "blender": (4, 0, 0),
     "location": "Properties > Render Properties > Render Specific Frames",
-    "description": "Advanced frame rendering with clipboard integration and keyframe detection",
-    "warning": "Windows clipboard functionality requires Windows OS",
+    "description": "Advanced frame rendering with keyframe detection and customizable filename patterns",
     "doc_url": "https://github.com/furion-mashiou/furion-render-helper",
     "tracker_url": "https://github.com/furion-mashiou/furion-render-helper/issues",
     "category": "Render",
 }
 
 import bpy
-import bmesh
 from bpy.props import StringProperty
 from bpy.types import Operator, Panel
 import os
 import json
 import sys
-import struct
-import ctypes
 
-# Global variable to store the output folder
+# Global variables to store user preferences
 output_folder_path = ""
+filename_pattern = "(FileName)_(Camera)_frame_(Frame)"
 
 # Path to store user preferences
 def get_preferences_file():
@@ -44,26 +41,39 @@ def get_preferences_file():
     user_data_dir = bpy.utils.user_resource('CONFIG')
     return os.path.join(user_data_dir, 'render_specific_frames_prefs.json')
 
-def load_default_output_folder():
-    """Load the default output folder from user preferences"""
-    global output_folder_path
+def load_user_preferences():
+    """Load user preferences including output folder and filename pattern"""
+    global output_folder_path, filename_pattern
     prefs_file = get_preferences_file()
     try:
         if os.path.exists(prefs_file):
             with open(prefs_file, 'r') as f:
                 prefs = json.load(f)
+                # Load output folder
                 saved_folder = prefs.get('default_output_folder', '')
                 if saved_folder and os.path.exists(saved_folder):
                     output_folder_path = saved_folder
                     print(f"Loaded default output folder: {output_folder_path}")
                 else:
                     print("Saved output folder no longer exists, using default")
+                
+                # Load filename pattern
+                saved_pattern = prefs.get('filename_pattern', '')
+                if saved_pattern:
+                    filename_pattern = saved_pattern
+                    print(f"Loaded filename pattern: {filename_pattern}")
+                else:
+                    print("Using default filename pattern")
     except Exception as e:
         print(f"Could not load preferences: {e}")
 
-def save_default_output_folder():
-    """Save the current output folder as default to user preferences"""
-    global output_folder_path
+def load_default_output_folder():
+    """Legacy function - now handled by load_user_preferences"""
+    load_user_preferences()
+
+def save_user_preferences():
+    """Save user preferences including output folder and filename pattern"""
+    global output_folder_path, filename_pattern
     prefs_file = get_preferences_file()
     try:
         # Ensure the config directory exists
@@ -75,220 +85,94 @@ def save_default_output_folder():
             with open(prefs_file, 'r') as f:
                 prefs = json.load(f)
         
-        # Update the output folder preference
+        # Update preferences
         prefs['default_output_folder'] = output_folder_path
+        prefs['filename_pattern'] = filename_pattern
         
         # Save preferences
         with open(prefs_file, 'w') as f:
             json.dump(prefs, f, indent=2)
         
-        print(f"Saved default output folder: {output_folder_path}")
+        print(f"Saved preferences - folder: {output_folder_path}, pattern: {filename_pattern}")
     except Exception as e:
         print(f"Could not save preferences: {e}")
 
-# Load default output folder on script load
-load_default_output_folder()
+def save_default_output_folder():
+    """Legacy function - now handled by save_user_preferences"""
+    save_user_preferences()
+
+# Load user preferences on script load
+load_user_preferences()
 
 
-def copy_render_result_to_windows_clipboard(context, fallback_path: str | None = None):
-    """Copy the last render to the Windows clipboard with alpha (Windows only).
-
-    Prefers loading from fallback_path (saved file), or tries the in-memory 'Render Result'.
-
-    Returns True on success, False otherwise.
+def generate_filename_from_pattern(pattern, blend_name, camera_name, frame_num, start_time=None, end_time=None):
     """
-    if sys.platform != 'win32':
-        print("Copy to clipboard is only implemented on Windows in this script.")
-        return False
-
-    img = None
-    use_loaded = False
+    Generate filename from pattern with token replacement
     
-    # Strategy 1: If we have a fallback file path, use that (most reliable)
-    if fallback_path and os.path.exists(fallback_path):
+    Available tokens:
+    (Camera) - Current scene camera name
+    (Frame) - Frame number (with padding: 0001)
+    (FileName) - Blender file name without .blend extension  
+    (Start:format) - Render start date/time with custom format
+    (End:format) - Render end date/time with custom format
+    
+    Format examples:
+    yyyyMMdd = 20251018
+    yyyyMMddHHmmss = 20251018172118
+    yyyy-MM-dd = 2025-10-18
+    yyyyMMdd_HH:mm:ss = 20251018_17:21:18
+    """
+    import re
+    from datetime import datetime
+    
+    result = pattern
+    
+    # Replace basic tokens
+    result = result.replace("(Camera)", camera_name or "NoCamera")
+    result = result.replace("(Frame)", f"{frame_num:04d}")
+    result = result.replace("(FileName)", blend_name or "untitled")
+    
+    # Replace datetime tokens with regex to handle custom formats
+    def replace_datetime_token(match):
+        token_type = match.group(1)  # "Start" or "End"
+        datetime_format = match.group(2)  # Custom format string
+        
+        # Select the appropriate datetime
+        if token_type == "Start" and start_time:
+            dt = start_time
+        elif token_type == "End" and end_time:
+            dt = end_time
+        else:
+            # Use current time as fallback
+            dt = datetime.now()
+        
+        # Convert custom format to Python strftime format
+        py_format = datetime_format
+        # Replace common patterns
+        py_format = py_format.replace("yyyy", "%Y")
+        py_format = py_format.replace("MM", "%m") 
+        py_format = py_format.replace("dd", "%d")
+        py_format = py_format.replace("HH", "%H")
+        py_format = py_format.replace("mm", "%M")
+        py_format = py_format.replace("ss", "%S")
+        
         try:
-            print(f"Loading image from disk: {fallback_path}")
-            # Use check_existing=False to force a fresh load
-            img = bpy.data.images.load(fallback_path, check_existing=False)
-            use_loaded = True
-            
-            # Verify the loaded image has valid data
-            if int(img.size[0]) <= 0 or int(img.size[1]) <= 0:
-                print(f"Loaded image has invalid dimensions: {img.size[0]}x{img.size[1]}")
-                bpy.data.images.remove(img)
-                img = None
-            else:
-                print(f"Successfully loaded image from disk: {img.size[0]}x{img.size[1]}, {img.channels} channels")
+            return dt.strftime(py_format)
         except Exception as e:
-            print(f"Could not load fallback image: {e}")
-            if img:
-                try:
-                    bpy.data.images.remove(img)
-                except:
-                    pass
-            img = None
+            print(f"Warning: Invalid datetime format '{datetime_format}': {e}")
+            return dt.strftime("%Y%m%d_%H%M%S")  # Fallback format
     
-    # Strategy 2: Try to get pixels directly from render engine
-    if not img:
-        print("Attempting to access Render Result from render engine...")
-        render_result = bpy.data.images.get('Render Result')
-        if render_result:
-            try:
-                # Get the actual pixel data size from the render settings
-                scene = context.scene
-                width = int(scene.render.resolution_x * scene.render.resolution_percentage / 100)
-                height = int(scene.render.resolution_y * scene.render.resolution_percentage / 100)
-                
-                print(f"Expected render size: {width}x{height}")
-                
-                # Try to access pixels - if this works, we can use it
-                pixel_count = width * height * 4
-                pixels = list(render_result.pixels)
-                
-                if len(pixels) == pixel_count:
-                    print(f"Successfully accessed {len(pixels)} pixels from Render Result")
-                    # Create a temporary image to hold the data
-                    img = render_result
-                    # Override the size with actual render size
-                    class FakeImg:
-                        def __init__(self, pixels_data, w, h, channels):
-                            self.pixels = pixels_data
-                            self.size = (w, h)
-                            self.channels = channels
-                    img = FakeImg(pixels, width, height, 4)
-                else:
-                    print(f"Pixel count mismatch: expected {pixel_count}, got {len(pixels)}")
-                    img = None
-            except Exception as e:
-                print(f"Could not access Render Result pixels: {e}")
-                img = None
+    # Replace Start and End tokens with format
+    result = re.sub(r'\((Start|End):([^)]+)\)', replace_datetime_token, result)
     
-    if not img:
-        print("No valid image data available from any source.")
-        return False
-
-    # Get image properties (works for both real images and our FakeImg wrapper)
-    channels = getattr(img, 'channels', 4)
-    if channels < 4:
-        print("Image has no alpha channel; proceeding without alpha.")
-
-    width = int(img.size[0])
-    height = int(img.size[1])
-    if width <= 0 or height <= 0:
-        print("Image has invalid dimensions.")
-        if use_loaded and hasattr(img, 'name'):
-            try:
-                bpy.data.images.remove(img)
-            except Exception:
-                pass
-        return False
-
-    # Fetch pixel data (RGBA floats 0..1), Blender stores bottom-up which matches positive DIB height
-    # Handle both list and property access
-    if isinstance(img.pixels, list):
-        pixels = img.pixels
-    else:
-        pixels = list(img.pixels)
-
-    # Convert to BGRA 8-bit bytes (no premultiply)
-    bgra = bytearray(width * height * 4)
-    for i in range(0, len(pixels), 4):
-        r = int(max(0, min(255, round(pixels[i + 0] * 255.0))))
-        g = int(max(0, min(255, round(pixels[i + 1] * 255.0))))
-        b = int(max(0, min(255, round(pixels[i + 2] * 255.0))))
-        a = int(max(0, min(255, round(pixels[i + 3] * 255.0)))) if channels >= 4 else 255
-        j = (i // 4) * 4
-        bgra[j + 0] = b
-        bgra[j + 1] = g
-        bgra[j + 2] = r
-        bgra[j + 3] = a
-
-    # Build BITMAPINFOHEADER (40 bytes), 32bpp, BI_RGB, bottom-up (positive height)
-    biSize = 40
-    biWidth = width
-    biHeight = height  # positive = bottom-up; matches Blender pixel order
-    biPlanes = 1
-    biBitCount = 32
-    BI_RGB = 0
-    biCompression = BI_RGB
-    biSizeImage = len(bgra)
-    biXPelsPerMeter = 0
-    biYPelsPerMeter = 0
-    biClrUsed = 0
-    biClrImportant = 0
-
-    header = struct.pack(
-        '<IiiHHIIiiII',
-        biSize, biWidth, biHeight, biPlanes, biBitCount,
-        biCompression, biSizeImage, biXPelsPerMeter, biYPelsPerMeter,
-        biClrUsed, biClrImportant
-    )
-
-    # Combine header + pixel data into a global memory block
-    CF_DIB = 8
-    GMEM_MOVEABLE = 0x0002
-    kernel32 = ctypes.windll.kernel32
-    user32 = ctypes.windll.user32
+    # Clean up any remaining tokens or invalid characters for filenames
+    # Remove invalid filename characters
+    invalid_chars = '<>:"/\\|?*'
+    for char in invalid_chars:
+        result = result.replace(char, '_')
     
-    # Set return types for better error handling
-    kernel32.GlobalAlloc.restype = ctypes.c_void_p
-    kernel32.GlobalLock.restype = ctypes.c_void_p
-    kernel32.GetLastError.restype = ctypes.c_uint32
+    return result
 
-    total_size = len(header) + len(bgra)
-    hGlobal = kernel32.GlobalAlloc(GMEM_MOVEABLE, total_size)
-    if not hGlobal:
-        error_code = kernel32.GetLastError()
-        print(f"GlobalAlloc failed with error code: {error_code}")
-        return False
-
-    pGlobal = kernel32.GlobalLock(hGlobal)
-    if not pGlobal:
-        error_code = kernel32.GetLastError()
-        print(f"GlobalLock failed with error code: {error_code}")
-        kernel32.GlobalFree(hGlobal)
-        return False
-
-    # Copy memory
-    try:
-        ctypes.memmove(ctypes.c_void_p(pGlobal), header, len(header))
-        dest_ptr = ctypes.c_void_p(pGlobal + len(header))
-        ctypes.memmove(dest_ptr, (ctypes.c_char * len(bgra)).from_buffer(bgra), len(bgra))
-    except Exception as e:
-        print(f"Memory copy failed: {e}")
-        kernel32.GlobalUnlock(hGlobal)
-        kernel32.GlobalFree(hGlobal)
-        return False
-    
-    kernel32.GlobalUnlock(hGlobal)
-
-    # Set clipboard data
-    if not user32.OpenClipboard(0):
-        error_code = kernel32.GetLastError()
-        print(f"OpenClipboard failed with error code: {error_code}")
-        kernel32.GlobalFree(hGlobal)
-        return False
-    try:
-        user32.EmptyClipboard()
-        if not user32.SetClipboardData(CF_DIB, hGlobal):
-            error_code = kernel32.GetLastError()
-            print(f"SetClipboardData failed with error code: {error_code}")
-            # If SetClipboardData fails, we must free the handle
-            kernel32.GlobalFree(hGlobal)
-            return False
-        # On success, do not free hGlobal; clipboard owns it now
-    finally:
-        user32.CloseClipboard()
-
-    print("✓ Image copied to Windows clipboard (BGRA 32-bit)")
-
-    # If we loaded a temporary image from disk, free it
-    if use_loaded and hasattr(img, 'name'):
-        try:
-            bpy.data.images.remove(img)
-        except Exception:
-            pass
-    return True
 
 class RENDER_OT_set_output_folder(Operator):
     """Set output folder for rendering specific frames"""
@@ -340,6 +224,72 @@ class RENDER_OT_set_output_folder(Operator):
         layout.label(text="This folder will be saved as your default", icon='DISK_DRIVE')
 
 
+class RENDER_OT_set_filename_pattern(Operator):
+    """Set filename pattern for rendered frames"""
+    bl_idname = "render.set_filename_pattern"
+    bl_label = "Set Filename Pattern"
+    bl_description = "Customize the filename pattern for rendered frames using tokens"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    # Property to store filename pattern
+    pattern: StringProperty(
+        name="Filename Pattern",
+        description="Filename pattern using tokens like (FileName), (Camera), (Frame), (Start:yyyyMMdd), (End:HHmmss)",
+        default="(FileName)_(Camera)_frame_(Frame)",
+        maxlen=200
+    )
+    
+    def execute(self, context):
+        global filename_pattern
+        if self.pattern.strip():
+            filename_pattern = self.pattern.strip()
+            # Save as default preference
+            save_user_preferences()
+            self.report({'INFO'}, f"Filename pattern set to: {filename_pattern}")
+        else:
+            # Reset to default
+            filename_pattern = "(FileName)_(Camera)_frame_(Frame)"
+            save_user_preferences()
+            self.report({'INFO'}, "Filename pattern reset to default")
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        global filename_pattern
+        self.pattern = filename_pattern
+        return context.window_manager.invoke_props_dialog(self, width=500)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "pattern")
+        layout.separator()
+        
+        # Help section
+        help_box = layout.box()
+        help_box.label(text="Available Tokens:", icon='INFO')
+        help_box.label(text="(FileName) - Blend file name without extension")
+        help_box.label(text="(Camera) - Current scene camera name")  
+        help_box.label(text="(Frame) - Frame number with padding (0001)")
+        help_box.label(text="(Start:format) - Render start date/time")
+        help_box.label(text="(End:format) - Render end date/time")
+        
+        layout.separator()
+        format_box = layout.box()
+        format_box.label(text="Date/Time Format Examples:", icon='TIME')
+        format_box.label(text="yyyyMMdd → 20251018")
+        format_box.label(text="yyyyMMddHHmmss → 20251018172118")  
+        format_box.label(text="yyyy-MM-dd → 2025-10-18")
+        format_box.label(text="yyyyMMdd_HH:mm:ss → 20251018_17:21:18")
+        
+        layout.separator()
+        example_box = layout.box()
+        example_box.label(text="Pattern Examples:", icon='FILE_TEXT')
+        example_box.label(text="(FileName)_(Camera)_(Frame)_(Start:yyyyMM)")
+        example_box.label(text="→ blenderfile_maincamera_0001_202510")
+        example_box.label(text="(FileName)_(Frame)_(End:yyyyMMddHHmmss)")
+        example_box.label(text="→ blenderfile_0001_20251018172118")
+
+
 class RENDER_OT_specific_frames(Operator):
     """Render specific frames based on user input"""
     bl_idname = "render.specific_frames"
@@ -366,6 +316,8 @@ class RENDER_OT_specific_frames(Operator):
     _blend_filename = ""
     _last_saved_path = ""
     _original_use_persistent_data = False
+    _render_start_time = None
+    _frame_start_time = None
     
     def modal(self, context, event):
         if event.type == 'TIMER':
@@ -386,8 +338,20 @@ class RENDER_OT_specific_frames(Operator):
             if scene.camera:
                 camera_name = scene.camera.name
             
-            # Create output filename with camera name
-            filename = f"{self._blend_filename}_{camera_name}_frame_{frame_num:04d}"
+            # Record frame start time for filename patterns
+            from datetime import datetime
+            self._frame_start_time = datetime.now()
+            
+            # Generate filename using custom pattern
+            global filename_pattern
+            filename = generate_filename_from_pattern(
+                filename_pattern,
+                self._blend_filename,
+                camera_name,
+                frame_num,
+                start_time=self._render_start_time,
+                end_time=None  # End time not available yet during rendering
+            )
             
             # Get file extension from render settings
             file_format = render.image_settings.file_format.lower()
@@ -469,15 +433,6 @@ class RENDER_OT_specific_frames(Operator):
         # Remove timer
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
-        
-        # Optional: copy last rendered image to clipboard if toggle enabled
-        if getattr(context.scene, 'copy_render_to_clipboard', False):
-            ok = copy_render_result_to_windows_clipboard(context, fallback_path=self._last_saved_path or None)
-            if ok:
-                self.report({'INFO'}, "Copied rendered image to clipboard")
-            else:
-                self.report({'WARNING'}, "Could not copy image to clipboard")
-
         self.report({'INFO'}, f"Successfully rendered {len(self._frame_numbers)} frames")
         return {'FINISHED'}
     
@@ -620,6 +575,10 @@ class RENDER_OT_specific_frames(Operator):
             print("💡 Press ESC to cancel rendering at any time")
             print("=" * 60 + "\n")
             
+            # Record render start time for filename patterns
+            from datetime import datetime
+            self._render_start_time = datetime.now()
+            
             # Start modal operation with timer
             wm = context.window_manager
             self._timer = wm.event_timer_add(0.1, window=context.window)
@@ -741,8 +700,18 @@ class RENDER_OT_current_frame(Operator):
             if scene.camera:
                 camera_name = scene.camera.name
             
-            # Build output path
-            filename = f"{blend_name}_{camera_name}_frame_{frame_num:04d}"
+            # Generate filename using custom pattern
+            from datetime import datetime
+            render_time = datetime.now()
+            global filename_pattern
+            filename = generate_filename_from_pattern(
+                filename_pattern,
+                blend_name,
+                camera_name,
+                frame_num,
+                start_time=render_time,
+                end_time=render_time  # For single frame, start and end are the same
+            )
             full_output_path = os.path.join(output_folder, filename + extension)
 
             # Console info
@@ -790,13 +759,6 @@ class RENDER_OT_current_frame(Operator):
             if os.path.exists(saved_path):
                 self.report({'INFO'}, f"Saved current frame to: {saved_path}")
                 print(f"✓ Saved current frame to: {saved_path}")
-                # Optional: copy to clipboard if toggle is enabled
-                if getattr(context.scene, 'copy_render_to_clipboard', False):
-                    ok = copy_render_result_to_windows_clipboard(context, fallback_path=saved_path)
-                    if ok:
-                        self.report({'INFO'}, "Copied rendered image to clipboard")
-                    else:
-                        self.report({'WARNING'}, "Could not copy image to clipboard")
                 return {'FINISHED'}
             else:   
                 self.report({'WARNING'}, "Rendered but could not confirm output file; check your default render output path.")
@@ -810,135 +772,6 @@ class RENDER_OT_current_frame(Operator):
 
         except Exception as e:
             self.report({'ERROR'}, f"Error rendering current frame: {str(e)}")
-            return {'CANCELLED'}
-
-
-class RENDER_OT_copy_to_clipboard(Operator):
-    """Copy the Render Result to clipboard for debugging"""
-    bl_idname = "render.copy_to_clipboard"
-    bl_label = "Copy Render Result to Clipboard"
-    bl_description = "Copy the current Render Result image to clipboard (for debugging)"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        try:
-            print("\n" + "=" * 60)
-            print("📋 COPY RENDER RESULT TO CLIPBOARD (DEBUG)")
-            print("=" * 60)
-            
-            # Check if Render Result exists
-            img = bpy.data.images.get('Render Result')
-            if not img:
-                self.report({'WARNING'}, "No Render Result found. Please render something first.")
-                print("⚠️  No Render Result found in bpy.data.images")
-                return {'CANCELLED'}
-            
-            # Check initial state
-            has_data = getattr(img, 'has_data', True)
-            print(f"Render Result exists: Yes")
-            print(f"Initial has_data: {has_data}")
-            print(f"Initial size: {img.size[0]}x{img.size[1]}")
-            print(f"Initial channels: {img.channels}")
-            
-            # Try to force update the pixel data
-            print("Attempting to update pixel data...")
-            try:
-                img.update()
-                if hasattr(img.pixels, 'update'):
-                    img.pixels.update()
-                print("✓ Pixel data update attempted")
-            except Exception as e:
-                print(f"⚠️  Update failed: {e}")
-            
-            # Check state after update
-            has_data = getattr(img, 'has_data', True)
-            print(f"After update has_data: {has_data}")
-            print(f"After update size: {img.size[0]}x{img.size[1]}")
-            print(f"After update channels: {img.channels}")
-            
-            # Check for valid data
-            if not has_data or int(img.size[0]) <= 0 or int(img.size[1]) <= 0:
-                self.report({'WARNING'}, "Render Result has no valid pixel data in memory")
-                print("⚠️  Render Result still has no valid data after update")
-                print("💡 Blender's Render Result doesn't store pixels in memory by default")
-                print("💡 Will try to load from last saved render file...")
-                
-                # Try to find the last rendered file as fallback
-                # Look for the last file that was actually saved
-                global output_folder_path
-                blend_filepath = bpy.data.filepath
-                scene = context.scene
-                
-                # Determine what the last saved file should be
-                if output_folder_path.strip():
-                    output_folder = bpy.path.abspath(output_folder_path.strip())
-                else:
-                    if blend_filepath:
-                        output_folder = os.path.dirname(bpy.path.abspath(blend_filepath))
-                    else:
-                        output_folder = os.getcwd()
-                
-                if blend_filepath:
-                    blend_name = os.path.splitext(os.path.basename(blend_filepath))[0]
-                else:
-                    blend_name = "untitled"
-                
-                frame_num = scene.frame_current
-                camera_name = "NoCamera"
-                if scene.camera:
-                    camera_name = scene.camera.name
-                
-                # Try different possible filenames
-                fmt = scene.render.image_settings.file_format.lower()
-                extensions = {
-                    'png': '.png',
-                    'jpeg': '.jpg',
-                    'tiff': '.tif',
-                    'exr': '.exr'
-                }
-                extension = extensions.get(fmt, '.png')
-                
-                possible_filename = f"{blend_name}_{camera_name}_frame_{frame_num:04d}{extension}"
-                possible_path = os.path.join(output_folder, possible_filename)
-                
-                print(f"Looking for: {possible_path}")
-                
-                if os.path.exists(possible_path):
-                    print(f"✓ Found render file: {possible_path}")
-                    print("Attempting to copy from file instead...")
-                    ok = copy_render_result_to_windows_clipboard(context, fallback_path=possible_path)
-                    if ok:
-                        self.report({'INFO'}, "✓ Copied from file to clipboard!")
-                        print("=" * 60 + "\n")
-                        return {'FINISHED'}
-                else:
-                    print(f"⚠️  File not found: {possible_path}")
-                    print("💡 Please render the current frame first, then try copying")
-                
-                print("=" * 60 + "\n")
-                return {'CANCELLED'}
-            
-            # Try to copy to clipboard
-            print(f"Attempting to copy {img.size[0]}x{img.size[1]} image to clipboard...")
-            ok = copy_render_result_to_windows_clipboard(context, fallback_path=None)
-            
-            if ok:
-                self.report({'INFO'}, "✓ Successfully copied Render Result to clipboard!")
-                print("✓ Successfully copied to clipboard!")
-                print("=" * 60 + "\n")
-                return {'FINISHED'}
-            else:
-                self.report({'WARNING'}, "Failed to copy to clipboard. Check console for details.")
-                print("❌ Failed to copy to clipboard")
-                print("=" * 60 + "\n")
-                return {'CANCELLED'}
-                
-        except Exception as e:
-            self.report({'ERROR'}, f"Error copying to clipboard: {str(e)}")
-            print(f"❌ Exception: {e}")
-            import traceback
-            traceback.print_exc()
-            print("=" * 60 + "\n")
             return {'CANCELLED'}
 
 
@@ -993,7 +826,18 @@ class RENDER_OT_open_output_folder(Operator):
             else:
                 extension = '.png'
 
-            expected_filename = f"{blend_name}_{camera_name}_frame_{frame_num:04d}{extension}"
+            # Generate expected filename using the current pattern
+            from datetime import datetime
+            global filename_pattern
+            expected_filename_base = generate_filename_from_pattern(
+                filename_pattern,
+                blend_name,
+                camera_name,
+                frame_num,
+                start_time=datetime.now(),  # We don't know the exact render time, use current
+                end_time=datetime.now()
+            )
+            expected_filename = expected_filename_base + extension
             expected_filepath = os.path.join(folder_to_open, expected_filename)
 
             # Console info
@@ -1007,7 +851,7 @@ class RENDER_OT_open_output_folder(Operator):
             if not os.path.exists(expected_filepath):
                 # Try alternative extensions/formats that might exist
                 alternative_files = []
-                base_name = f"{blend_name}_{camera_name}_frame_{frame_num:04d}"
+                base_name = expected_filename_base  # Use the pattern-generated base name
                 common_extensions = ['.png', '.jpg', '.jpeg', '.tif', '.tiff', '.exr', '.bmp']
                 
                 for ext in common_extensions:
@@ -1247,7 +1091,7 @@ class RENDER_PT_specific_frames_panel(Panel):
         # Header/info
         box = layout.box()
         box.label(text="Render Specific Frames Tool", icon='RENDER_ANIMATION')
-        box.label(text="Step 1: Set output folder (optional)")
+        box.label(text="Step 1: Set output folder and filename pattern (optional)")
         box.label(text="Step 2: Choose frames to render")
 
         # Output folder section
@@ -1265,60 +1109,79 @@ class RENDER_PT_specific_frames_panel(Panel):
 
         col.operator("render.set_output_folder", text="Set Output Folder", icon='FILE_FOLDER')
 
+        # Filename pattern section
+        layout.separator()
+        col = layout.column(align=True)
+        col.label(text="Filename Pattern Settings:")
+        
+        global filename_pattern
+        if filename_pattern:
+            # Show current pattern with truncation if too long
+            display_pattern = filename_pattern if len(filename_pattern) <= 35 else filename_pattern[:32] + "..."
+            col.label(text=f"Current: {display_pattern}", icon='FILE_TEXT')
+            
+            # Show a preview of what the filename would look like
+            try:
+                # Generate preview filename
+                blend_name = "MyProject" if not bpy.data.filepath else os.path.splitext(os.path.basename(bpy.data.filepath))[0]
+                camera_name = context.scene.camera.name if context.scene.camera else "Camera"
+                frame_num = context.scene.frame_current
+                from datetime import datetime
+                preview_filename = generate_filename_from_pattern(
+                    filename_pattern,
+                    blend_name,
+                    camera_name,
+                    frame_num,
+                    start_time=datetime.now(),
+                    end_time=datetime.now()
+                )
+                col.label(text=f"Preview: {preview_filename}.png", icon='PREVIEW_RANGE')
+            except Exception:
+                col.label(text="Preview: (Pattern error)", icon='ERROR')
+        else:
+            col.label(text="Current: (Default pattern)", icon='FILE_TEXT')
+        
+        col.operator("render.set_filename_pattern", text="Customize Filename Pattern", icon='PROPERTIES')
+
         # Rendering section
         layout.separator()
         layout.label(text="Render Frames:")
         layout.operator("render.specific_frames", text="Render Specific Frames", icon='RENDER_STILL')
         layout.operator("render.current_frame", text="Render Current Frame", icon='RENDER_STILL')
         layout.operator("render.open_output_folder", text="Open Rendered Frame Result", icon='IMAGE_DATA')
-        layout.prop(context.scene, "copy_render_to_clipboard", text="Copy rendered image to clipboard (alpha)")
-        
-        # Debug section
-        layout.separator()
-        layout.label(text="Debug Tools:")
-        layout.operator("render.copy_to_clipboard", text="Copy Render Result to Clipboard", icon='COPYDOWN')
 
         # Tips
         layout.separator()
         tips = layout.column(align=True)
         tips.label(text="Tips:")
-        tips.label(text="• Default folder is automatically loaded from preferences")
-        tips.label(text="• Set output folder to save as new default")
+        tips.label(text="• Default folder and filename pattern are saved in preferences")
+        tips.label(text="• Customize filename pattern with tokens like (FileName), (Camera), (Frame)")
+        tips.label(text="• Use date/time tokens: (Start:yyyyMMdd), (End:HHmmss)")
         tips.label(text="• Enter frames separated by commas")
         tips.label(text="• Single frames: 1,5,10,25,50")
         tips.label(text="• Ranges: 1-5,10-15,30 (inclusive)")
         tips.label(text="• Mixed: 1,5-10,15,20-25")
         tips.label(text="• Duplicates will be removed")
-        tips.label(text="• Output format: [blendname]_frame_XXXX")
 
 
 def register():
     bpy.utils.register_class(RENDER_OT_set_output_folder)
+    bpy.utils.register_class(RENDER_OT_set_filename_pattern)
     bpy.utils.register_class(RENDER_OT_specific_frames)
     bpy.utils.register_class(RENDER_OT_current_frame)
-    bpy.utils.register_class(RENDER_OT_copy_to_clipboard)
     bpy.utils.register_class(RENDER_OT_open_output_folder)
     bpy.utils.register_class(RENDER_OT_suggest_keyframes)
     bpy.utils.register_class(RENDER_PT_specific_frames_panel)
-    # Scene property for clipboard toggle
-    bpy.types.Scene.copy_render_to_clipboard = bpy.props.BoolProperty(
-        name="Copy Render To Clipboard",
-        description="After rendering, copy the Render Result to system clipboard (Windows only)",
-        default=False,
-    )
 
 
 def unregister():
     bpy.utils.unregister_class(RENDER_OT_set_output_folder)
+    bpy.utils.unregister_class(RENDER_OT_set_filename_pattern)
     bpy.utils.unregister_class(RENDER_OT_specific_frames)
     bpy.utils.unregister_class(RENDER_OT_current_frame)
-    bpy.utils.unregister_class(RENDER_OT_copy_to_clipboard)
     bpy.utils.unregister_class(RENDER_OT_open_output_folder)
     bpy.utils.unregister_class(RENDER_OT_suggest_keyframes)
     bpy.utils.unregister_class(RENDER_PT_specific_frames_panel)
-    # Remove Scene property
-    if hasattr(bpy.types.Scene, 'copy_render_to_clipboard'):
-        del bpy.types.Scene.copy_render_to_clipboard
 
 
 if __name__ == "__main__":

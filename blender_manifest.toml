@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
 id = "furion_render_helper"
-version = "1.0.0"
+version = "1.2.0"
 name = "Furion Render Helper"
-tagline = "Advanced frame rendering with clipboard integration and keyframe detection"
+tagline = "Advanced frame rendering with keyframe detection and filename patterns"
 maintainer = "Furion Mashiou <furion@example.com>"
 type = "add-on"
 
@@ -24,8 +24,7 @@ copyright = [
 
 # Add-ons can list which resources they will require
 [permissions]
-files = "User preferences file for output folder settings"
-clipboard = "Copy rendered images to system clipboard"
+files = "User preferences file for output folder and filename pattern settings"
 
 [build]
 paths_exclude_pattern = [
