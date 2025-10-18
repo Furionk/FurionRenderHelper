@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Furion Render Helper - Advanced frame rendering with multi-channel output
+Furion Render Helper - Frame rendering with multi-channel output
 
 This extension provides tools for batch rendering specific frames with advanced features:
 - Batch frame rendering with flexible input (individual frames and ranges)
@@ -18,7 +18,7 @@ bl_info = {
     "author": "Furion Mashiou",
     "version": (1, 3, 0),
     "blender": (4, 0, 0),
-    "location": "Properties > Render Properties > Render Specific Frames",
+    "location": "Properties > Render Properties > Furion Render Helper",
     "description": "Advanced frame rendering with multi-channel output and customizable filename patterns",
     "doc_url": "https://github.com/furion-mashiou/furion-render-helper",
     "tracker_url": "https://github.com/furion-mashiou/furion-render-helper/issues",
@@ -588,10 +588,10 @@ class RENDER_OT_set_filename_pattern(Operator):
 
 
 class RENDER_OT_specific_frames(Operator):
-    """Render specific frames based on user input"""
+    """Furion Render Helper based on user input"""
     bl_idname = "render.specific_frames"
-    bl_label = "Render Specific Frames"
-    bl_description = "Render specific frames entered by user (comma separated)"
+    bl_label = "Furion Render Helper"
+    bl_description = "Furion Render Helper entered by user (comma separated)"
     bl_options = {'REGISTER', 'UNDO'}
     
     # Property to store frame numbers input
@@ -1066,7 +1066,7 @@ class RENDER_OT_current_frame(Operator):
             if len(selected_channels) > 1 and "(Channel)" not in filename_pattern:
                 self.report({'INFO'}, f"💡 Tip: Add (Channel) token to filename pattern for multi-pass rendering. {len(selected_channels)} passes will use the same filename.")
 
-            # Store original filepath to restore after rendering
+            # Store original settings to restore after rendering
             original_filepath = render.filepath
             original_format = render.image_settings.file_format
             format_switched = False
@@ -1602,7 +1602,7 @@ class RENDER_PT_specific_frames_panel(Panel):
 
         # Header/info
         box = layout.box()
-        box.label(text="Render Specific Frames Tool", icon='RENDER_ANIMATION')
+        box.label(text="Furion Render Helper", icon='RENDER_ANIMATION')
         box.label(text="Step 1: Set output folder and filename pattern (optional)")
         box.label(text="Step 2: Choose frames to render")
 

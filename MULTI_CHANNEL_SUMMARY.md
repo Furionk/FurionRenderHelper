@@ -154,7 +154,7 @@ Output File: MyProject_Camera_0010_Depth.png
 1. **Download**: `furion_render_helper_v1.3.0_20251018.zip`
 2. **Install**: Edit > Preferences > Extensions > Install from Disk
 3. **Enable**: Find "Furion Render Helper" in Extensions list
-4. **Access**: Properties Panel > Render Properties > Render Specific Frames
+4. **Access**: Properties Panel > Render Properties > Furion Render Helper
 
 ---
 

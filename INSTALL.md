@@ -60,8 +60,8 @@ blender --command extension install-file furion_render_helper-1.0.0.zip
 
 ## Verification
 
-After installation, you should see the "Render Specific Frames" panel in:
-`Properties Panel > Render Properties > Render Specific Frames`
+After installation, you should see the "Furion Render Helper" panel in:
+`Properties Panel > Render Properties > Furion Render Helper`
 
 ## Requirements
 

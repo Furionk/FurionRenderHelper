@@ -1,10 +1,10 @@
 # Furion Render Helper
 
-Batch render specific frames with multi-channel output and customizable filename patterns.
+Batch Furion Render Helper with multi-channel output and customizable filename patterns.
 
 ## Key Features
 
-- 🎯 **Batch Frame Rendering** - Render specific frames or ranges (e.g., `1,5,10-15,30`)
+- 🎯 **Batch Frame Rendering** - Furion Render Helper or ranges (e.g., `1,5,10-15,30`)
 - 🎨 **Multi-Channel Output** - Automatically exports all enabled render passes from View Layer
 - 📝 **Custom Filename Patterns** - Token-based naming with live preview
 - 🔑 **Smart Keyframe Detection** - Auto-suggest frames with keyframes
