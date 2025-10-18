@@ -120,11 +120,10 @@ def validate_channel_pattern(pattern, has_multiple_channels):
 
 
 def get_selected_channels(scene):
-    """Get list of selected render channels/passes"""
+    """Get list of enabled render channels/passes from Blender's view layer settings"""
     channels = []
     
     # Get the first view layer (most common case)
-    # In most cases, there's only one view layer and it's the first one
     view_layer = None
     if scene.view_layers:
         view_layer = scene.view_layers[0]
@@ -133,40 +132,49 @@ def get_selected_channels(scene):
     if not view_layer:
         return [('Combined', 'Combined')]
     
-    # Check which passes are enabled
-    if getattr(scene, 'render_channel_combined', True):
-        channels.append(('Combined', 'Combined'))
+    # Always include Combined pass (it's always available)
+    channels.append(('Combined', 'Combined'))
     
-    if getattr(scene, 'render_channel_z', False):
-        # Enable the pass if user selected it but it's not enabled
-        if not view_layer.use_pass_z:
-            view_layer.use_pass_z = True
+    # Check which passes are enabled in Blender's view layer settings
+    if view_layer.use_pass_z:
         channels.append(('Depth', 'Depth'))
     
-    if getattr(scene, 'render_channel_mist', False):
-        if not view_layer.use_pass_mist:
-            view_layer.use_pass_mist = True
+    if view_layer.use_pass_mist:
         channels.append(('Mist', 'Mist'))
     
-    if getattr(scene, 'render_channel_normal', False):
-        if not view_layer.use_pass_normal:
-            view_layer.use_pass_normal = True
+    if view_layer.use_pass_normal:
         channels.append(('Normal', 'Normal'))
     
-    if getattr(scene, 'render_channel_diffuse', False):
-        if not view_layer.use_pass_diffuse_direct:
-            view_layer.use_pass_diffuse_direct = True
+    if view_layer.use_pass_diffuse_direct:
         channels.append(('DiffuseDir', 'DiffuseDir'))
     
-    if getattr(scene, 'render_channel_glossy', False):
-        if not view_layer.use_pass_glossy_direct:
-            view_layer.use_pass_glossy_direct = True
+    if view_layer.use_pass_glossy_direct:
         channels.append(('GlossyDir', 'GlossyDir'))
     
-    if getattr(scene, 'render_channel_emission', False):
-        if not view_layer.use_pass_emit:
-            view_layer.use_pass_emit = True
+    if view_layer.use_pass_emit:
         channels.append(('Emit', 'Emit'))
+    
+    # Additional common passes
+    if view_layer.use_pass_diffuse_color:
+        channels.append(('DiffuseCol', 'DiffuseCol'))
+    
+    if view_layer.use_pass_glossy_color:
+        channels.append(('GlossyCol', 'GlossyCol'))
+    
+    if view_layer.use_pass_transmission_direct:
+        channels.append(('TransDir', 'TransDir'))
+    
+    if view_layer.use_pass_transmission_color:
+        channels.append(('TransCol', 'TransCol'))
+    
+    if view_layer.use_pass_ambient_occlusion:
+        channels.append(('AO', 'AO'))
+    
+    if view_layer.use_pass_shadow:
+        channels.append(('Shadow', 'Shadow'))
+    
+    if hasattr(view_layer, 'use_pass_environment') and view_layer.use_pass_environment:
+        channels.append(('Environment', 'Environment'))
     
     return channels
 
@@ -301,14 +309,21 @@ def setup_compositor_for_pass(scene, channel_name, pass_name):
         composite_node.location = (0, 0)
         original_state['created_nodes'].append(composite_node.name)
         
-        # Map channel names to socket names
+        # Map channel names to socket names in Blender's compositor
         socket_mapping = {
             'Depth': 'Depth',
             'Mist': 'Mist',
             'Normal': 'Normal',
             'DiffuseDir': 'DiffDir',
             'GlossyDir': 'GlossDir',
-            'Emit': 'Emit'
+            'Emit': 'Emit',
+            'DiffuseCol': 'DiffCol',
+            'GlossyCol': 'GlossCol',
+            'TransDir': 'TransDir',
+            'TransCol': 'TransCol',
+            'AO': 'AO',
+            'Shadow': 'Shadow',
+            'Environment': 'Env'
         }
         
         socket_name = socket_mapping.get(channel_name, channel_name)
@@ -376,15 +391,17 @@ def save_render_result(scene, filepath):
         return False
 
 
-def generate_filename_from_pattern(pattern, blend_name, camera_name, frame_num, start_time=None, end_time=None, channel_name=None):
+def generate_filename_from_pattern(pattern, blend_name, camera_name, frame_num, start_time=None, end_time=None, channel_name=None, view_layer_name=None):
     """
     Generate filename from pattern with token replacement
     
     Available tokens:
+    (FileName) - Blender file name without .blend extension
     (Camera) - Current scene camera name
-    (Frame) - Frame number (with padding: 0001)
-    (FileName) - Blender file name without .blend extension  
-    (Channel) - Render pass/channel name (Combined, Depth, Mist, etc.)
+    (ViewLayer) - Current view layer name
+    (Frame) - Frame number with zero-padding (0001, 0002, etc.)
+    (Channel) - Render pass/channel name (Combined, Depth, Mist, Normal, etc.)
+                Required when multiple render passes are enabled to avoid overwriting
     (Start:format) - Render start date/time with custom format
     (End:format) - Render end date/time with custom format
     
@@ -403,6 +420,7 @@ def generate_filename_from_pattern(pattern, blend_name, camera_name, frame_num, 
     result = result.replace("(Camera)", camera_name or "NoCamera")
     result = result.replace("(Frame)", f"{frame_num:04d}")
     result = result.replace("(FileName)", blend_name or "untitled")
+    result = result.replace("(ViewLayer)", view_layer_name or "ViewLayer")
     
     # Only replace (Channel) token if it exists in the pattern
     if "(Channel)" in result:
@@ -510,7 +528,7 @@ class RENDER_OT_set_filename_pattern(Operator):
     # Property to store filename pattern
     pattern: StringProperty(
         name="Filename Pattern",
-        description="Filename pattern using tokens like (FileName), (Camera), (Frame), (Start:yyyyMMdd), (End:HHmmss)",
+        description="Filename pattern using tokens like (FileName), (Camera), (ViewLayer), (Frame), (Channel), (Start:yyyyMMdd), (End:HHmmss)",
         default="(FileName)_(Camera)_frame_(Frame)",
         maxlen=200
     )
@@ -544,8 +562,11 @@ class RENDER_OT_set_filename_pattern(Operator):
         help_box = layout.box()
         help_box.label(text="Available Tokens:", icon='INFO')
         help_box.label(text="(FileName) - Blend file name without extension")
-        help_box.label(text="(Camera) - Current scene camera name")  
+        help_box.label(text="(Camera) - Current scene camera name")
+        help_box.label(text="(ViewLayer) - Current view layer name")
         help_box.label(text="(Frame) - Frame number with padding (0001)")
+        help_box.label(text="(Channel) - Render pass name (Combined, Depth, etc.)")
+        help_box.label(text="             Required for multi-pass rendering")
         help_box.label(text="(Start:format) - Render start date/time")
         help_box.label(text="(End:format) - Render end date/time")
         
@@ -625,6 +646,9 @@ class RENDER_OT_specific_frames(Operator):
             if scene.camera:
                 camera_name = scene.camera.name
             
+            # Get view layer name
+            view_layer_name = scene.view_layers[0].name if scene.view_layers else "ViewLayer"
+            
             # Record frame start time for filename patterns
             from datetime import datetime
             self._frame_start_time = datetime.now()
@@ -640,7 +664,8 @@ class RENDER_OT_specific_frames(Operator):
                     frame_num,
                     start_time=self._render_start_time,
                     end_time=None,  # End time not available yet during rendering
-                    channel_name=channel_name
+                    channel_name=channel_name,
+                    view_layer_name=view_layer_name
                 )
             else:
                 filename = generate_filename_from_pattern(
@@ -650,7 +675,8 @@ class RENDER_OT_specific_frames(Operator):
                     frame_num,
                     start_time=self._render_start_time,
                     end_time=None,  # End time not available yet during rendering
-                    channel_name=None
+                    channel_name=None,
+                    view_layer_name=view_layer_name
                 )
             
             # Get file extension from render settings
@@ -872,21 +898,16 @@ class RENDER_OT_specific_frames(Operator):
             # Remove duplicates and sort
             frame_numbers = sorted(list(set(frame_numbers)))
             
-            # Get selected render channels and validate
+            # Get selected render channels from Blender's view layer
             scene = context.scene
             selected_channels = get_selected_channels(scene)
-            if not selected_channels:
-                # Default to Combined if nothing selected
-                selected_channels = [('Combined', 'Combined')]
-                scene.render_channel_combined = True
+            
+            # Note: Combined is always included by default in get_selected_channels()
 
-            # Validate filename pattern for multi-channel rendering
+            # Show info if multiple channels but no (Channel) token
             global filename_pattern
-            if len(selected_channels) > 1:
-                is_valid, error_msg = validate_channel_pattern(filename_pattern, True)
-                if not is_valid:
-                    self.report({'ERROR'}, error_msg)
-                    return {'CANCELLED'}
+            if len(selected_channels) > 1 and "(Channel)" not in filename_pattern:
+                self.report({'INFO'}, f"💡 Tip: Add (Channel) token to filename pattern for multi-pass rendering. {len(selected_channels)} passes will use the same filename.")
             
             # Store frame numbers and channels for modal operation
             self._frame_numbers = frame_numbers
@@ -1036,19 +1057,14 @@ class RENDER_OT_current_frame(Operator):
             scene = context.scene
             render = scene.render
 
-            # Get selected render channels
+            # Get selected render channels from Blender's view layer
             selected_channels = get_selected_channels(scene)
-            if not selected_channels:
-                # Default to Combined if nothing selected
-                selected_channels = [('Combined', 'Combined')]
-                scene.render_channel_combined = True
+            
+            # Note: Combined is always included by default in get_selected_channels()
 
-            # Validate filename pattern for multi-channel rendering (only if more than 1 channel)
-            if len(selected_channels) > 1:
-                is_valid, error_msg = validate_channel_pattern(filename_pattern, True)
-                if not is_valid:
-                    self.report({'ERROR'}, error_msg)
-                    return {'CANCELLED'}
+            # Show info if multiple channels but no (Channel) token
+            if len(selected_channels) > 1 and "(Channel)" not in filename_pattern:
+                self.report({'INFO'}, f"💡 Tip: Add (Channel) token to filename pattern for multi-pass rendering. {len(selected_channels)} passes will use the same filename.")
 
             # Store original filepath to restore after rendering
             original_filepath = render.filepath
@@ -1101,6 +1117,9 @@ class RENDER_OT_current_frame(Operator):
             if scene.camera:
                 camera_name = scene.camera.name
 
+            # Get view layer name
+            view_layer_name = scene.view_layers[0].name if scene.view_layers else "ViewLayer"
+
             # Console info
             print("\n" + "=" * 60)
             print("🎯 RENDER CURRENT FRAME")
@@ -1128,7 +1147,8 @@ class RENDER_OT_current_frame(Operator):
                         frame_num,
                         start_time=render_time,
                         end_time=render_time,
-                        channel_name=channel_name
+                        channel_name=channel_name,
+                        view_layer_name=view_layer_name
                     )
                 else:
                     # Don't use channel name - for single Combined pass without (Channel) token
@@ -1139,7 +1159,8 @@ class RENDER_OT_current_frame(Operator):
                         frame_num,
                         start_time=render_time,
                         end_time=render_time,
-                        channel_name=None  # This will default to "Combined" but won't be used
+                        channel_name=None,  # This will default to "Combined" but won't be used
+                        view_layer_name=view_layer_name
                     )
                 
                 full_output_path = os.path.join(output_folder, filename + extension)
@@ -1211,6 +1232,57 @@ class RENDER_OT_current_frame(Operator):
             return {'CANCELLED'}
 
 
+class RENDER_OT_browse_output_folder(Operator):
+    """Open the output folder in file explorer"""
+    bl_idname = "render.browse_output_folder"
+    bl_label = "Open Output Folder"
+    bl_description = "Open the configured output folder in your file explorer"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        global output_folder_path
+        try:
+            blend_filepath = bpy.data.filepath
+            
+            # Determine output folder
+            if output_folder_path.strip():
+                folder_to_open = bpy.path.abspath(output_folder_path.strip())
+            else:
+                if blend_filepath:
+                    folder_to_open = os.path.dirname(bpy.path.abspath(blend_filepath))
+                else:
+                    folder_to_open = os.getcwd()
+
+            # Check if folder exists
+            if not os.path.exists(folder_to_open):
+                self.report({'ERROR'}, f"Output folder does not exist: {folder_to_open}")
+                return {'CANCELLED'}
+
+            # Open the folder using platform-specific method
+            import subprocess
+            import platform
+
+            system = platform.system()
+            try:
+                if system == "Windows":
+                    os.startfile(folder_to_open)
+                elif system == "Darwin":  # macOS
+                    subprocess.Popen(["open", folder_to_open])
+                else:  # Linux and others
+                    subprocess.Popen(["xdg-open", folder_to_open])
+                
+                self.report({'INFO'}, f"Opened folder: {folder_to_open}")
+                return {'FINISHED'}
+            
+            except Exception as e:
+                self.report({'ERROR'}, f"Could not open folder: {e}")
+                return {'CANCELLED'}
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Error opening output folder: {str(e)}")
+            return {'CANCELLED'}
+
+
 class RENDER_OT_open_output_folder(Operator):
     """Open the rendered image file for the current frame"""
     bl_idname = "render.open_output_folder"
@@ -1249,6 +1321,9 @@ class RENDER_OT_open_output_folder(Operator):
             if scene.camera:
                 camera_name = scene.camera.name
 
+            # Get view layer name
+            view_layer_name = scene.view_layers[0].name if scene.view_layers else "ViewLayer"
+
             # Determine file extension from render settings
             fmt = scene.render.image_settings.file_format.lower()
             if fmt == 'png':
@@ -1271,7 +1346,8 @@ class RENDER_OT_open_output_folder(Operator):
                 camera_name,
                 frame_num,
                 start_time=datetime.now(),  # We don't know the exact render time, use current
-                end_time=datetime.now()
+                end_time=datetime.now(),
+                view_layer_name=view_layer_name
             )
             expected_filename = expected_filename_base + extension
             expected_filepath = os.path.join(folder_to_open, expected_filename)
@@ -1543,7 +1619,10 @@ class RENDER_PT_specific_frames_panel(Panel):
             col.label(text="Current: (Blend file directory)", icon='FOLDER_REDIRECT')
             col.label(text="(No default folder set)", icon='INFO')
 
-        col.operator("render.set_output_folder", text="Set Output Folder", icon='FILE_FOLDER')
+        # Buttons for setting and opening output folder
+        row = col.row(align=True)
+        row.operator("render.set_output_folder", text="Set Output Folder", icon='FILE_FOLDER')
+        row.operator("render.browse_output_folder", text="Open Folder", icon='FOLDER_REDIRECT')
 
         # Filename pattern section
         layout.separator()
@@ -1561,6 +1640,7 @@ class RENDER_PT_specific_frames_panel(Panel):
                 # Generate preview filename
                 blend_name = "MyProject" if not bpy.data.filepath else os.path.splitext(os.path.basename(bpy.data.filepath))[0]
                 camera_name = context.scene.camera.name if context.scene.camera else "Camera"
+                view_layer_name = context.scene.view_layers[0].name if context.scene.view_layers else "ViewLayer"
                 frame_num = context.scene.frame_current
                 from datetime import datetime
                 
@@ -1576,7 +1656,8 @@ class RENDER_PT_specific_frames_panel(Panel):
                         frame_num,
                         start_time=datetime.now(),
                         end_time=datetime.now(),
-                        channel_name=channel_name
+                        channel_name=channel_name,
+                        view_layer_name=view_layer_name
                     )
                     col.label(text=f"Preview: {preview_filename}.png", icon='PREVIEW_RANGE')
                     col.label(text=f"(+ {len(selected_channels)-1} more channels)", icon='INFO')
@@ -1590,7 +1671,8 @@ class RENDER_PT_specific_frames_panel(Panel):
                         frame_num,
                         start_time=datetime.now(),
                         end_time=datetime.now(),
-                        channel_name=channel_name
+                        channel_name=channel_name,
+                        view_layer_name=view_layer_name
                     )
                     col.label(text=f"Preview: {preview_filename}.png", icon='PREVIEW_RANGE')
             except Exception:
@@ -1600,40 +1682,42 @@ class RENDER_PT_specific_frames_panel(Panel):
         
         col.operator("render.set_filename_pattern", text="Customize Filename Pattern", icon='PROPERTIES')
 
-        # Render Channels section
+        # Render Channels section - Show enabled passes from Blender's view layer
         layout.separator()
         box = layout.box()
         box.label(text="Output Channels/Passes:", icon='RENDERLAYERS')
         
         scene = context.scene
         
-        # Basic passes
-        row = box.row(align=True)
-        row.prop(scene, "render_channel_combined", text="Combined")
-        row.prop(scene, "render_channel_z", text="Depth")
-        row.prop(scene, "render_channel_mist", text="Mist")
-        row.prop(scene, "render_channel_normal", text="Normal")
-        
-        # Advanced passes
-        row = box.row(align=True)
-        row.prop(scene, "render_channel_diffuse", text="Diffuse")
-        row.prop(scene, "render_channel_glossy", text="Glossy")
-        row.prop(scene, "render_channel_emission", text="Emission")
-        
-        # Show selected channels count and validation
+        # Get enabled channels from Blender's view layer settings
         selected_channels = get_selected_channels(scene)
         num_selected = len(selected_channels)
         
-        if num_selected == 0:
-            box.label(text="⚠️ No channels selected! Combined will be used as default.", icon='ERROR')
-        elif num_selected == 1:
-            box.label(text=f"✓ {num_selected} channel selected", icon='CHECKMARK')
-        else:
-            box.label(text=f"✓ {num_selected} channels selected", icon='CHECKMARK')
-            # Validate filename pattern for multi-channel
-            is_valid, error_msg = validate_channel_pattern(filename_pattern, num_selected > 1)
-            if not is_valid:
-                box.label(text=f"⚠️ {error_msg}", icon='ERROR')
+        # Display info about enabled passes
+        info_col = box.column(align=True)
+        info_col.label(text=f"✓ {num_selected} channel(s) enabled in View Layer", icon='CHECKMARK')
+        
+        # Show which channels are enabled
+        if num_selected <= 10:
+            channel_names = [ch[0] for ch in selected_channels]
+            info_col.label(text=f"Channels: {', '.join(channel_names)}", icon='DOT')
+        
+        # Info message for multi-channel rendering without (Channel) token
+        if num_selected > 1 and "(Channel)" not in filename_pattern:
+            box.separator()
+            info_box = box.box()
+            info_box.label(text="💡 Multi-Pass Tip:", icon='INFO')
+            info_col = info_box.column(align=True)
+            info_col.label(text=f"   {num_selected} passes enabled but no (Channel) token in pattern")
+            info_col.label(text="   All passes will overwrite the same filename")
+            info_col.label(text="   Add (Channel) token to save each pass separately")
+        
+        # Quick link to view layer passes settings
+        box.separator()
+        box.label(text="💡 Configure passes in:", icon='INFO')
+        col = box.column(align=True)
+        col.label(text="   Properties > View Layer Properties > Passes")
+        col.label(text="   (Enable Data > Z, Mist, Normal, etc.)")
 
         # Rendering section
         layout.separator()
@@ -1659,6 +1743,7 @@ class RENDER_PT_specific_frames_panel(Panel):
 
 def register():
     bpy.utils.register_class(RENDER_OT_set_output_folder)
+    bpy.utils.register_class(RENDER_OT_browse_output_folder)
     bpy.utils.register_class(RENDER_OT_set_filename_pattern)
     bpy.utils.register_class(RENDER_OT_specific_frames)
     bpy.utils.register_class(RENDER_OT_current_frame)
@@ -1666,67 +1751,19 @@ def register():
     bpy.utils.register_class(RENDER_OT_suggest_keyframes)
     bpy.utils.register_class(RENDER_PT_specific_frames_panel)
     
-    # Register Scene properties for render channels
-    bpy.types.Scene.render_channel_combined = BoolProperty(
-        name="Combined",
-        description="Render the combined/beauty pass",
-        default=True
-    )
-    
-    bpy.types.Scene.render_channel_z = BoolProperty(
-        name="Depth (Z)",
-        description="Render the depth pass",
-        default=False
-    )
-    
-    bpy.types.Scene.render_channel_mist = BoolProperty(
-        name="Mist",
-        description="Render the mist pass",
-        default=False
-    )
-    
-    bpy.types.Scene.render_channel_normal = BoolProperty(
-        name="Normal",
-        description="Render the normal pass",
-        default=False
-    )
-    
-    bpy.types.Scene.render_channel_diffuse = BoolProperty(
-        name="Diffuse Direct",
-        description="Render the diffuse direct pass",
-        default=False
-    )
-    
-    bpy.types.Scene.render_channel_glossy = BoolProperty(
-        name="Glossy Direct", 
-        description="Render the glossy direct pass",
-        default=False
-    )
-    
-    bpy.types.Scene.render_channel_emission = BoolProperty(
-        name="Emission",
-        description="Render the emission pass",
-        default=False
-    )
+    # Load saved preferences
+    load_user_preferences()
 
 
 def unregister():
     bpy.utils.unregister_class(RENDER_OT_set_output_folder)
+    bpy.utils.unregister_class(RENDER_OT_browse_output_folder)
     bpy.utils.unregister_class(RENDER_OT_set_filename_pattern)
     bpy.utils.unregister_class(RENDER_OT_specific_frames)
     bpy.utils.unregister_class(RENDER_OT_current_frame)
     bpy.utils.unregister_class(RENDER_OT_open_output_folder)
     bpy.utils.unregister_class(RENDER_OT_suggest_keyframes)
     bpy.utils.unregister_class(RENDER_PT_specific_frames_panel)
-    
-    # Unregister Scene properties
-    del bpy.types.Scene.render_channel_combined
-    del bpy.types.Scene.render_channel_z
-    del bpy.types.Scene.render_channel_mist
-    del bpy.types.Scene.render_channel_normal
-    del bpy.types.Scene.render_channel_diffuse
-    del bpy.types.Scene.render_channel_glossy
-    del bpy.types.Scene.render_channel_emission
 
 
 if __name__ == "__main__":

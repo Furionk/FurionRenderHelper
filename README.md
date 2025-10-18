@@ -21,10 +21,11 @@ Advanced frame rendering with keyframe detection for Blender.
    - Add date/time with `(Start:yyyyMMdd)`, `(End:HHmmss)` for time-stamped files
    - Preview shows exactly how your files will be named
 
-3. **Select Render Channels/Passes**: 
-   - Choose which render passes to output: Combined, Depth, Mist, Normal, etc.
-   - Multiple channels require `(Channel)` token in filename pattern
-   - Extension automatically enables selected passes in render settings
+3. **Configure Render Passes** (In Blender's View Layer Properties): 
+   - Go to Properties > View Layer Properties > Passes
+   - Enable the passes you want to output: Data (Z/Depth, Mist, Normal), Light (Diffuse, Glossy, Emission, etc.)
+   - The extension automatically detects and outputs ALL enabled passes
+   - Multiple passes require `(Channel)` token in filename pattern
 
 4. **Choose Frames to Render**: 
    - Enter frame numbers manually: `1,5,10,25`
@@ -41,8 +42,11 @@ The extension supports a powerful token-based filename pattern system:
 ### Available Tokens
 - `(FileName)` - Blend file name without .blend extension
 - `(Camera)` - Current scene camera name
+- `(ViewLayer)` - Current view layer name
 - `(Frame)` - Frame number with zero-padding (0001, 0002, etc.)
-- `(Channel)` - Render pass/channel name (Combined, Depth, Mist, etc.) - **Required for multi-channel rendering**
+- `(Channel)` - Render pass/channel name (Combined, Depth, Mist, Normal, AO, etc.)
+  - **Required when multiple render passes are enabled** to avoid files overwriting each other
+  - Leave it out when rendering only single pass to simplify filenames
 - `(Start:format)` - Render batch start date/time
 - `(End:format)` - Render completion date/time (or current time for single frames)
 
@@ -58,8 +62,9 @@ The extension supports a powerful token-based filename pattern system:
 | Pattern | Output Example |
 |---------|----------------|
 | `(FileName)_(Camera)_frame_(Frame)` | `MyProject_Camera_frame_0001` |
+| `(FileName)_(ViewLayer)_(Frame)` | `MyProject_ViewLayer_0001` |
 | `(FileName)_(Camera)_(Frame)_(Channel)` | `MyProject_Camera_0001_Combined` |
-| `(FileName)_(Frame)_(Channel)` | `MyProject_0001_Depth` |
+| `(FileName)_(ViewLayer)_(Frame)_(Channel)` | `MyProject_ViewLayer_0001_Depth` |
 | `(FileName)_(Camera)_(Frame)_(Start:yyyyMM)` | `MyProject_Camera_0001_202510` |
 | `(FileName)_(Frame)_(End:yyyyMMddHHmmss)` | `MyProject_0001_20251018172118` |
 | `(FileName)_(End:yyyyMMdd_HH:mm:ss)` | `MyProject_20251018_17:21:18` |
