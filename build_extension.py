@@ -70,8 +70,19 @@ def create_extension_package():
         'INSTALL.md'
     ]
     
+    # Read version from manifest
+    version = "1.3.0"  # Default fallback
+    try:
+        with open(os.path.join(current_dir, 'blender_manifest.toml'), 'r') as f:
+            for line in f:
+                if line.startswith('version = '):
+                    version = line.split('"')[1]
+                    break
+    except Exception:
+        pass
+    
     # Create package name with version and date
-    package_name = f"furion_render_helper_v1.2.0_{datetime.now().strftime('%Y%m%d')}.zip"
+    package_name = f"furion_render_helper_v{version}_{datetime.now().strftime('%Y%m%d')}.zip"
     package_path = os.path.join(current_dir, package_name)
     
     print(f"📦 Package name: {package_name}")

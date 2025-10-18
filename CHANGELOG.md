@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2024-10-18
+
+### Added
+- **Multi-channel Render Pass Output**: Select and render multiple passes simultaneously
+  - Combined, Depth (Z), Mist, Normal, Diffuse Direct, Glossy Direct, Emission passes
+  - Automatic render pass enablement when selected
+  - Individual file output for each selected pass
+- **Enhanced Filename Patterns**: New `(Channel)` token for multi-pass workflows
+  - Required when multiple render passes are selected
+  - Generates unique filenames per channel/pass
+- **Advanced Validation**: Smart filename pattern checking
+  - Warns when multiple channels selected without `(Channel)` token
+  - Prevents rendering with invalid patterns
+- **Enhanced Progress Tracking**: 
+  - Total render count (frames × channels)
+  - Per-channel progress display in console and UI
+  - Detailed rendering information with channel names
+
+### Updated
+- **UI Enhancements**: New render channels selection section with checkboxes
+- **Progress Reporting**: More detailed console output and progress messages
+- **Documentation**: Updated with multi-channel workflow information
+
+### Fixed
+- **View Layer Access**: Fixed AttributeError when accessing scene view layers (used proper collection indexing)
+- **Render Pass Extraction**: Implemented proper render pass extraction using compositor setup
+  - Each render pass now outputs correct data instead of Combined pass
+  - Automatic compositor configuration for specific passes (Depth, Mist, Normal, etc.)
+  - Proper cleanup and restoration of original compositor state
+- **Single Channel Rendering**: Fixed "could not confirm output files" error when using Combined channel only
+  - Properly handles filename patterns without (Channel) token for single channel rendering
+  - Improved file validation and manual save fallback for robust file output
+
 ## [1.2.0] - 2024-10-18
 
 ### Removed
