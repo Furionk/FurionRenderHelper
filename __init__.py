@@ -1593,18 +1593,11 @@ class RENDER_PT_specific_frames_panel(Panel):
     bl_region_type = 'WINDOW'
     bl_context = "render"
     
-    def draw(self, context):
+    def draw(self, context):    
         global output_folder_path
         layout = self.layout
 
-        # Header/info
-        box = layout.box()
-        box.label(text="Furion Render Helper", icon='RENDER_ANIMATION')
-        box.label(text="Step 1: Set output folder and filename pattern (optional)")
-        box.label(text="Step 2: Choose frames to render")
-
         # Output folder section
-        layout.separator()
         col = layout.column(align=True)
         col.label(text="Output Folder Settings:")
 
@@ -1681,40 +1674,22 @@ class RENDER_PT_specific_frames_panel(Panel):
 
         # Render Channels section - Show enabled passes from Blender's view layer
         layout.separator()
-        box = layout.box()
-        box.label(text="Output Channels/Passes:", icon='RENDERLAYERS')
-        
         scene = context.scene
-        
-        # Get enabled channels from Blender's view layer settings
         selected_channels = get_selected_channels(scene)
         num_selected = len(selected_channels)
         
-        # Display info about enabled passes
-        info_col = box.column(align=True)
-        info_col.label(text=f"✓ {num_selected} channel(s) enabled in View Layer", icon='CHECKMARK')
-        
-        # Show which channels are enabled
+        # Compact channel info
+        row = layout.row(align=True)
+        row.label(text=f"Output Channels: {num_selected}", icon='RENDERLAYERS')
         if num_selected <= 10:
             channel_names = [ch[0] for ch in selected_channels]
-            info_col.label(text=f"Channels: {', '.join(channel_names)}", icon='DOT')
+            row.label(text=f"({', '.join(channel_names)})")
         
-        # Info message for multi-channel rendering without (Channel) token
+        # Warning for multi-channel without (Channel) token
         if num_selected > 1 and "(Channel)" not in filename_pattern:
-            box.separator()
-            info_box = box.box()
-            info_box.label(text="💡 Multi-Pass Tip:", icon='INFO')
-            info_col = info_box.column(align=True)
-            info_col.label(text=f"   {num_selected} passes enabled but no (Channel) token in pattern")
-            info_col.label(text="   All passes will overwrite the same filename")
-            info_col.label(text="   Add (Channel) token to save each pass separately")
-        
-        # Quick link to view layer passes settings
-        box.separator()
-        box.label(text="💡 Configure passes in:", icon='INFO')
-        col = box.column(align=True)
-        col.label(text="   Properties > View Layer Properties > Passes")
-        col.label(text="   (Enable Data > Z, Mist, Normal, etc.)")
+            row = layout.row()
+            row.alert = True
+            row.label(text="Add (Channel) token to pattern for multi-pass, only the first pass will be handled now", icon='ERROR')
 
         # Rendering section
         layout.separator()
@@ -1723,19 +1698,33 @@ class RENDER_PT_specific_frames_panel(Panel):
         layout.operator("render.current_frame", text="Render Current Frame", icon='RENDER_STILL')
         layout.operator("render.open_output_folder", text="Open Rendered Frame Result", icon='IMAGE_DATA')
 
-        # Tips
+        # Tips section with toggle button
         layout.separator()
-        tips = layout.column(align=True)
-        tips.label(text="Tips:")
-        tips.label(text="• Default folder and filename pattern are saved in preferences")
-        tips.label(text="• Filename tokens: (FileName), (Camera), (Frame), (Channel)")
-        tips.label(text="• Date/time tokens: (Start:yyyyMMdd), (End:HHmmss)")
-        tips.label(text="• (Channel) token required when multiple passes selected")
-        tips.label(text="• Enter frames separated by commas")
-        tips.label(text="• Single frames: 1,5,10,25,50")
-        tips.label(text="• Ranges: 1-5,10-15,30 (inclusive)")
-        tips.label(text="• Mixed: 1,5-10,15,20-25")
-        tips.label(text="• Duplicates will be removed")
+        row = layout.row()
+        
+        # Toggle button for tips visibility
+        icon = 'TRIA_DOWN' if context.scene.frh_show_tips else 'TRIA_RIGHT'
+        row.prop(context.scene, "frh_show_tips", text="Tips", icon=icon, toggle=True)
+        
+        # Show tips only if enabled
+        if context.scene.frh_show_tips:
+            # Header/info
+            box = layout.box()
+            box.label(text="Furion Render Helper", icon='RENDER_ANIMATION')
+            box.label(text="Step 1: Set output folder and filename pattern (optional)")
+            box.label(text="Step 2: Choose frames to render")
+            
+            layout.separator()
+            tips = layout.column(align=True)
+            tips.label(text="• Default folder and filename pattern are saved in preferences")
+            tips.label(text="• Filename tokens: (FileName), (Camera), (Frame), (Channel)")
+            tips.label(text="• Date/time tokens: (Start:yyyyMMdd), (End:HHmmss)")
+            tips.label(text="• (Channel) token required when multiple passes selected")
+            tips.label(text="• Enter frames separated by commas")
+            tips.label(text="• Single frames: 1,5,10,25,50")
+            tips.label(text="• Ranges: 1-5,10-15,30 (inclusive)")
+            tips.label(text="• Mixed: 1,5-10,15,20-25")
+            tips.label(text="• Duplicates will be removed")
 
 
 def register():
@@ -1748,11 +1737,21 @@ def register():
     bpy.utils.register_class(RENDER_OT_suggest_keyframes)
     bpy.utils.register_class(RENDER_PT_specific_frames_panel)
     
+    # Register scene properties
+    bpy.types.Scene.frh_show_tips = BoolProperty(
+        name="Show Tips",
+        description="Toggle visibility of tips section",
+        default=False
+    )
+    
     # Load saved preferences
     load_user_preferences()
 
 
 def unregister():
+    # Unregister scene properties
+    del bpy.types.Scene.frh_show_tips
+    
     bpy.utils.unregister_class(RENDER_OT_set_output_folder)
     bpy.utils.unregister_class(RENDER_OT_browse_output_folder)
     bpy.utils.unregister_class(RENDER_OT_set_filename_pattern)
