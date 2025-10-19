@@ -13,7 +13,7 @@ This extension provides tools for batch rendering specific frames with advanced 
 bl_info = {
     "name": "Furion Render Helper",
     "author": "Furion Mashiou",
-    "version": (1, 3, 0),
+    "version": (1, 3, 1),
     "blender": (4, 0, 0),
     "location": "Properties > Render Properties > Furion Render Helper",
     "description": "Advanced frame rendering with multi-channel output and customizable filename patterns",
