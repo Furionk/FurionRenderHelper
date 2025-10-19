@@ -1,6 +1,3 @@
-# SPDX-FileCopyrightText: 2024 Furion Mashiou
-# SPDX-License-Identifier: GPL-3.0-or-later
-
 """
 Furion Render Helper - Frame rendering with multi-channel output
 
