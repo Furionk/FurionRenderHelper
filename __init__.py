@@ -13,7 +13,7 @@ This extension provides tools for batch rendering specific frames with advanced 
 bl_info = {
     "name": "Furion Render Helper",
     "author": "Furion Mashiou",
-    "version": (1, 3, 1),
+    "version": (1, 4, 0),
     "blender": (4, 0, 0),
     "location": "Properties > Render Properties > Furion Render Helper",
     "description": "Advanced frame rendering with multi-channel output and customizable filename patterns",
@@ -23,8 +23,8 @@ bl_info = {
 }
 
 import bpy
-from bpy.props import StringProperty, BoolProperty
-from bpy.types import Operator, Panel
+from bpy.props import StringProperty, BoolProperty, EnumProperty
+from bpy.types import Operator, Panel, AddonPreferences
 import os
 import json
 import sys
@@ -33,11 +33,143 @@ import sys
 output_folder_path = ""
 filename_pattern = "(FileName)_(Camera)_frame_(Frame)"
 
+
+# Add-on Preferences Class
+class FurionRenderHelperPreferences(AddonPreferences):
+    """Preferences for Furion Render Helper"""
+    bl_idname = __name__
+    
+    output_path_source: EnumProperty(
+        name="Output Path Source",
+        description="Choose where to read the output folder path from",
+        items=[
+            ('USER_PREFS', "User Preferences", "Read from user preferences JSON file (default, persistent across projects)"),
+            ('SCENE_PROPS', "Scene Properties", "Read from current scene's custom properties (per-project settings)"),
+        ],
+        default='USER_PREFS',
+        update=lambda self, context: load_output_folder_from_source(context)
+    )
+    
+    def draw(self, context):
+        layout = self.layout
+        
+        box = layout.box()
+        box.label(text="Output Folder Path Storage:", icon='FOLDER_REDIRECT')
+        box.prop(self, "output_path_source", expand=True)
+        
+        # Information about each option
+        layout.separator()
+        info_box = layout.box()
+        info_box.label(text="ℹ️ Information:", icon='INFO')
+        
+        col = info_box.column(align=True)
+        col.label(text="• User Preferences: Global setting saved in Blender's config folder")
+        col.label(text="  Same output folder across all blend files")
+        col.label(text="")
+        col.label(text="• Scene Properties: Per-project setting stored in blend file")
+        col.label(text="  Different output folder for each blend file")
+        
+        # Show current output folder
+        layout.separator()
+        current_box = layout.box()
+        global output_folder_path
+        if output_folder_path:
+            current_box.label(text=f"Current Output Folder: {output_folder_path}", icon='CHECKMARK')
+        else:
+            current_box.label(text="Current Output Folder: (Not set, will use blend file directory)", icon='INFO')
+
 # Path to store user preferences
 def get_preferences_file():
     """Get the path to the preferences file in Blender's user data folder"""
     user_data_dir = bpy.utils.user_resource('CONFIG')
     return os.path.join(user_data_dir, 'render_specific_frames_prefs.json')
+
+
+def get_addon_preferences():
+    """Get the addon preferences"""
+    try:
+        return bpy.context.preferences.addons[__name__].preferences
+    except:
+        return None
+
+
+def get_output_path_source():
+    """Get the current output path source setting"""
+    prefs = get_addon_preferences()
+    if prefs:
+        return prefs.output_path_source
+    return 'USER_PREFS'  # Default
+
+
+def load_output_folder_from_scene(scene=None):
+    """Load output folder from scene custom properties"""
+    global output_folder_path
+    
+    if scene is None:
+        try:
+            scene = bpy.context.scene
+        except:
+            return
+    
+    if "frh_output_folder" in scene:
+        saved_folder = scene["frh_output_folder"]
+        if saved_folder and os.path.exists(saved_folder):
+            output_folder_path = saved_folder
+            print(f"Loaded output folder from scene: {output_folder_path}")
+        else:
+            output_folder_path = ""
+            print("Scene output folder no longer exists or is empty")
+    else:
+        output_folder_path = ""
+        print("No output folder stored in scene properties")
+
+
+def save_output_folder_to_scene(scene=None):
+    """Save output folder to scene custom properties"""
+    global output_folder_path
+    
+    if scene is None:
+        try:
+            scene = bpy.context.scene
+        except:
+            return
+    
+    scene["frh_output_folder"] = output_folder_path
+    print(f"Saved output folder to scene: {output_folder_path}")
+
+
+def load_output_folder_from_user_prefs():
+    """Load output folder from user preferences JSON file"""
+    global output_folder_path
+    prefs_file = get_preferences_file()
+    try:
+        if os.path.exists(prefs_file):
+            with open(prefs_file, 'r') as f:
+                prefs = json.load(f)
+                saved_folder = prefs.get('default_output_folder', '')
+                if saved_folder and os.path.exists(saved_folder):
+                    output_folder_path = saved_folder
+                    print(f"Loaded output folder from user preferences: {output_folder_path}")
+                else:
+                    output_folder_path = ""
+                    print("Saved output folder no longer exists, using default")
+        else:
+            output_folder_path = ""
+    except Exception as e:
+        print(f"Could not load output folder from user preferences: {e}")
+        output_folder_path = ""
+
+
+def load_output_folder_from_source(context=None):
+    """Load output folder based on the current source setting"""
+    source = get_output_path_source()
+    
+    if source == 'SCENE_PROPS':
+        scene = context.scene if context else bpy.context.scene
+        load_output_folder_from_scene(scene)
+    else:  # USER_PREFS
+        load_output_folder_from_user_prefs()
+
 
 def load_user_preferences():
     """Load user preferences including output folder and filename pattern"""
@@ -47,21 +179,17 @@ def load_user_preferences():
         if os.path.exists(prefs_file):
             with open(prefs_file, 'r') as f:
                 prefs = json.load(f)
-                # Load output folder
-                saved_folder = prefs.get('default_output_folder', '')
-                if saved_folder and os.path.exists(saved_folder):
-                    output_folder_path = saved_folder
-                    print(f"Loaded default output folder: {output_folder_path}")
-                else:
-                    print("Saved output folder no longer exists, using default")
                 
-                # Load filename pattern
+                # Load filename pattern (always from user prefs)
                 saved_pattern = prefs.get('filename_pattern', '')
                 if saved_pattern:
                     filename_pattern = saved_pattern
                     print(f"Loaded filename pattern: {filename_pattern}")
                 else:
                     print("Using default filename pattern")
+                
+                # Load output folder based on source setting
+                load_output_folder_from_source()
     except Exception as e:
         print(f"Could not load preferences: {e}")
 
@@ -83,15 +211,26 @@ def save_user_preferences():
             with open(prefs_file, 'r') as f:
                 prefs = json.load(f)
         
-        # Update preferences
-        prefs['default_output_folder'] = output_folder_path
+        # Update filename pattern (always save to user prefs)
         prefs['filename_pattern'] = filename_pattern
+        
+        # Update output folder based on source setting
+        source = get_output_path_source()
+        if source == 'USER_PREFS':
+            # Save to user preferences JSON
+            prefs['default_output_folder'] = output_folder_path
+            print(f"Saved output folder to user preferences: {output_folder_path}")
+        else:  # SCENE_PROPS
+            # Save to scene custom properties
+            save_output_folder_to_scene()
+            # Keep the old value in JSON for when user switches back
+            # prefs['default_output_folder'] stays as-is
         
         # Save preferences
         with open(prefs_file, 'w') as f:
             json.dump(prefs, f, indent=2)
         
-        print(f"Saved preferences - folder: {output_folder_path}, pattern: {filename_pattern}")
+        print(f"Saved preferences - pattern: {filename_pattern}")
     except Exception as e:
         print(f"Could not save preferences: {e}")
 
@@ -101,6 +240,14 @@ def save_default_output_folder():
 
 # Load user preferences on script load
 load_user_preferences()
+
+
+# Handler for when a blend file is loaded
+@bpy.app.handlers.persistent
+def on_file_load(dummy):
+    """Handler called when a blend file is loaded"""
+    # Reload output folder based on current source setting
+    load_output_folder_from_source()
 
 
 def validate_channel_pattern(pattern, has_multiple_channels):
@@ -511,8 +658,20 @@ class RENDER_OT_set_output_folder(Operator):
         layout = self.layout
         layout.prop(self, "folder_path")
         layout.separator()
+        
+        # Show information about storage location
+        source = get_output_path_source()
+        info_box = layout.box()
+        if source == 'SCENE_PROPS':
+            info_box.label(text="Storage: Scene Properties (per-project)", icon='SCENE_DATA')
+            info_box.label(text="This folder will be saved in the blend file")
+        else:  # USER_PREFS
+            info_box.label(text="Storage: User Preferences (global)", icon='PREFERENCES')
+            info_box.label(text="This folder will be saved as your default")
+        
+        layout.separator()
         layout.label(text="Leave empty to use blend file directory")
-        layout.label(text="This folder will be saved as your default", icon='DISK_DRIVE')
+        layout.label(text="Change storage location in Add-on Preferences", icon='INFO')
 
 
 class RENDER_OT_set_filename_pattern(Operator):
@@ -1601,10 +1760,17 @@ class RENDER_PT_specific_frames_panel(Panel):
         col = layout.column(align=True)
         col.label(text="Output Folder Settings:")
 
+        # Show storage source info
+        source = get_output_path_source()
+        source_box = col.box()
+        if source == 'SCENE_PROPS':
+            source_box.label(text="Storage: Scene Properties (per-project)", icon='SCENE_DATA')
+        else:
+            source_box.label(text="Storage: User Preferences (global)", icon='PREFERENCES')
+
         if output_folder_path:
             col.label(text=f"Current: {os.path.basename(output_folder_path)}", icon='FOLDER_REDIRECT')
             col.label(text=f"Path: {output_folder_path}")
-            col.label(text="(Loaded from user preferences)", icon='DISK_DRIVE')
         else:
             col.label(text="Current: (Blend file directory)", icon='FOLDER_REDIRECT')
             col.label(text="(No default folder set)", icon='INFO')
@@ -1728,6 +1894,7 @@ class RENDER_PT_specific_frames_panel(Panel):
 
 
 def register():
+    bpy.utils.register_class(FurionRenderHelperPreferences)
     bpy.utils.register_class(RENDER_OT_set_output_folder)
     bpy.utils.register_class(RENDER_OT_browse_output_folder)
     bpy.utils.register_class(RENDER_OT_set_filename_pattern)
@@ -1744,14 +1911,22 @@ def register():
         default=False
     )
     
+    # Add handler to reload output folder when file is loaded
+    bpy.app.handlers.load_post.append(on_file_load)
+    
     # Load saved preferences
     load_user_preferences()
 
 
 def unregister():
+    # Remove handler
+    if on_file_load in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(on_file_load)
+    
     # Unregister scene properties
     del bpy.types.Scene.frh_show_tips
     
+    bpy.utils.unregister_class(FurionRenderHelperPreferences)
     bpy.utils.unregister_class(RENDER_OT_set_output_folder)
     bpy.utils.unregister_class(RENDER_OT_browse_output_folder)
     bpy.utils.unregister_class(RENDER_OT_set_filename_pattern)

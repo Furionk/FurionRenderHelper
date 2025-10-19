@@ -8,20 +8,22 @@ This is just a blender plugin for me to batch render with multi-channel output a
 
 - 🎯 **Batch Frame Rendering** - Batch render by typing frame ranges (e.g., `1,5,10-15,30`)
 - 🔑 **Smart Keyframe Detection** - Auto-suggest keyframes for blocking stage renders. Intelligently extracts keyframes from the Dope Sheet Summary timeline, skipping interpolated frames. Respects your frame range: if you type `1-100`, only keyframes between 1 and 100 are included (keyframes at 100+ are filtered out). Perfect for reviewing animation blocking without rendering unnecessary in-between frames. 
-This feature intelligently extracts keyframes from the Dope Sheet Summary timeline, making it ideal for reviewing animation blocking without rendering interpolated frames.
-
-
+This feature intelligently extracts keyframes from the Dope Sheet Summary timeline, making it ideal for reviewing animation blocking without interpolated frames.
 - 🎨 **Multi-Channel Output** - Render multiple passes (Combined, Depth, Mist, Normal, etc.) in a single batch
 - 📝 **Customizable Filenames** - Use flexible token patterns with date/time support
 - 💾 **Persistent Settings** - Output folder and filename patterns are saved between sessions
+- 🔀 **Flexible Storage** - Choose between global user preferences or per-project scene properties
 
 ## Quick Start
 
 1. **Set Output Folder** - Click "Set Output Folder" or leave blank to use blend file directory
-2. **Enable Render Passes** - Go to View Layer Properties > Passes and enable desired outputs channels (optional)
-3. **Configure Pattern** (Optional) - Use tokens like `(FileName)_(Frame)_(Channel)` for custom naming
-4. **Enter Frames** - Type frame numbers: `1,5,10` or ranges: `1-5,10-15` or click keyframe icon
-5. **Render** - Click "Render Specific Frames" or "Render Current Frame"
+2. **Configure Storage** (Optional) - Go to Preferences > Add-ons > Furion Render Helper to choose:
+   - **User Preferences**: Global output folder for all projects (default)
+   - **Scene Properties**: Per-project output folder saved in blend file
+3. **Enable Render Passes** - Go to View Layer Properties > Passes and enable desired outputs channels (optional)
+4. **Configure Pattern** (Optional) - Use tokens like `(FileName)_(Frame)_(Channel)` for custom naming
+5. **Enter Frames** - Type frame numbers: `1,5,10` or ranges: `1-5,10-15` or click keyframe icon
+6. **Render** - Click "Render Specific Frames" or "Render Current Frame"
 
 ## Filename Tokens
 
@@ -62,6 +64,24 @@ Properties > View Layer Properties > Passes > Data/Light sections
   `MyProject_0001_Combined.png`, `MyProject_0001_Depth.png`
 - ⚠️ Without token: Passes overwrite each other  
   `MyProject_0001.png` (only last pass saved)
+
+## Output Folder Storage Options
+
+Choose where to store your output folder path in **Preferences > Add-ons > Furion Render Helper**:
+
+### User Preferences (Default)
+- ✅ Global setting saved in Blender's config folder
+- ✅ Same output folder across all blend files
+- ✅ Perfect for solo artists with consistent folder structure
+- Example: All projects render to `C:\Renders\`
+
+### Scene Properties
+- ✅ Per-project setting stored in blend file
+- ✅ Each blend file can have its own output folder
+- ✅ Perfect for studios, multiple clients, or project-specific workflows
+- Example: ClientA renders to `D:\ClientA\Renders\`, ClientB to `D:\ClientB\Renders\`
+
+**Tip:** The panel shows which mode is active with a badge (🎬 Scene Properties or ⚙️ User Preferences)
 
 ## Requirements
 
