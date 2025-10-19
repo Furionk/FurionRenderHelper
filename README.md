@@ -7,8 +7,7 @@ This is just a blender plugin for me to batch render with multi-channel output a
 ## Key Features
 
 - 🎯 **Batch Frame Rendering** - Batch render by typing frame ranges (e.g., `1,5,10-15,30`)
-- 🔑 **Smart Keyframe Detection** - Auto-suggest keyframes for blocking stage renders. Intelligently extracts keyframes from the Dope Sheet Summary timeline, skipping interpolated frames. Respects your frame range: if you type `1-100`, only keyframes between 1 and 100 are included (keyframes at 100+ are filtered out). Perfect for reviewing animation blocking without rendering unnecessary in-between frames. 
-This feature intelligently extracts keyframes from the Dope Sheet Summary timeline, making it ideal for reviewing animation blocking without rendering interpolated frames.
+- 🔑 **Smart Keyframe Detection** - Auto-suggest keyframes for blocking stage renders. Extracts keyframes from the Dope Sheet Summary timeline, skipping interpolated frames. Respects your frame range: if you type `1-100`, only keyframes between 1 and 100 are included (keyframes at 100+ are filtered out). It is for reviewing animation blocking without rendering unnecessary in-between frames. Making it for reviewing animation blocking without rendering interpolated frames easier.
 
 
 - 🎨 **Multi-Channel Output** - Render multiple passes (Combined, Depth, Mist, Normal, etc.) in a single batch
